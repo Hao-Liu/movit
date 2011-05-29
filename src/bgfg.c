@@ -1,4 +1,5 @@
 #include <cv.h>
+#include "movit.h"
 
 int getBackground(IplImage **img, int n, IplImage **bg)
 {
@@ -26,9 +27,9 @@ int getForeground(IplImage **img, int n, IplImage **bg)
 
 int getParameters(IplImage **img, int n, double *thr, double *dia, int *jit)
 {
-	(*thr)=1.0;
-	(*jit)=3;
-	(*dia)=8.0;
+	(*thr)=0.03;
+	(*jit)=5;
+	(*dia)=5.0;
 	return 1;
 }
 
@@ -47,7 +48,6 @@ int isIn(CvBox2D *b, CvBox2D *a)
 
 int getPosition(IplImage **img, int n, double thr, double dia, int jit, CvSeq **pos)
 {
-	int nbox=0;
 	int i=0;
 	
 	CvMemStorage* storage;
@@ -58,18 +58,15 @@ int getPosition(IplImage **img, int n, double thr, double dia, int jit, CvSeq **
 	
 	for(i=0; i<n; i++)
 	{
-    nbox=0;
 
 		cvSmooth(*(img+i), *(img+i), CV_GAUSSIAN, jit, jit, 0,0);
-		cvScale(*(img+i), *(img+i), 40.0, 0.0);
-		cvShowImage("Image", *(img+i));
-		cvWaitKey(50);
+//		cvScale(*(img+i), *(img+i), 40.0, 0.0);
 		cvThreshold(*(img+i), *(img+i), thr, 1.0, CV_THRESH_BINARY);
 		storage = cvCreateMemStorage(0);
     contour = cvCreateSeq(CV_SEQ_ELTYPE_POINT, 
     					sizeof(CvSeq), sizeof(CvPoint) , storage);
 
-    *(pos+i) = cvCreateSeq(0, sizeof(CvSeq), sizeof(CvBox2D) , storage);
+    *(pos+i) = cvCreateSeq(0, sizeof(CvSeq), sizeof(POSITION) , storage);
 		
 		buffer = cvCreateImage(cvSize(1004,1002), IPL_DEPTH_8U, 1);
 		cvScale(*(img+i), buffer, 256.0, 0.0);
@@ -81,6 +78,7 @@ int getPosition(IplImage **img, int n, double thr, double dia, int jit, CvSeq **
         CvPoint center;
         CvSize size;
         CvBox2D box;
+        POSITION posi;
 
         // Number point must be more than or equal to 6 (for cvFitEllipse_32f).
         if( count < 6 )
@@ -95,11 +93,16 @@ int getPosition(IplImage **img, int n, double thr, double dia, int jit, CvSeq **
         box = cvFitEllipse2( points_f );
 				
 				if( box.size.width != 0.0 &&	box.size.height != 0.0 &&
-      		box.size.height > (dia/1.4) && 
+      		box.size.height > dia && 
 					box.size.height/box.size.width<5.0)
 				{	
-					cvSeqPush(*(pos+i), &box);
-					nbox++;
+				  posi.x = box.center.x;
+				  posi.y = box.center.y;
+				  posi.width = box.size.width;
+				  posi.height = box.size.height;
+				  posi.angle = box.angle;
+				  posi.frame = i;
+					cvSeqPush(*(pos+i), &posi);
 				}
         cvReleaseMat(&points_f);
     }
@@ -152,19 +155,17 @@ int getPosStat(int n, CvSeq **position, int *histRadii, int *histDist)
 		{
 			int minsq=10000000;
 			
-			CvBox2D *box;
-			box = (CvBox2D *)cvGetSeqElem((*(position+i)), j);
-			(*(histRadii+cvFloor(box->size.height)))++;
+			POSITION *pos1;
+			pos1 = (POSITION *)cvGetSeqElem((*(position+i)), j);
+			(*(histRadii+cvFloor(pos1->height)))++;
 			for(k=0;k<(*(position+i))->total;k++)
 			{
 				if(k!=j)
 				{
-					CvBox2D *nbox;
-					nbox = (CvBox2D *)cvGetSeqElem((*(position+i)), k);
-					int distsq = 	(nbox->center.x-box->center.x)*
-												(nbox->center.x-box->center.x)+
-												(nbox->center.y-box->center.y)*
-												(nbox->center.y-box->center.y);
+				  POSITION *pos2;
+					pos2 = (POSITION *)cvGetSeqElem((*(position+i)), k);
+					int distsq = 	(pos2->x-pos1->x)*(pos2->x-pos1->x)+
+												(pos2->y-pos1->y)*(pos2->y-pos1->y);
 					if(distsq<minsq)
 					{
 						minsq=distsq;

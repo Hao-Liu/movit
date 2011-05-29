@@ -1,4 +1,7 @@
 #include <cv.h>
+#include <stdio.h>
+#include "movit.h"
+
 #include "track.h"
 int cmpfunc( const void* _a, const void* _b, void* userdata)
 {
@@ -12,7 +15,7 @@ int associate(TRACKSET *trackSet, CvSeq *curTrack, CvSeq *pos, CvSeq **tangle, C
 {
 	int i=0;
 	int j=0;
-	int threshold=20000;
+	int threshold=2000;
 	CvMat *pass=NULL;
 	
 	pass = cvCreateMat(curTrack->total, pos->total, CV_32SC1);
@@ -26,10 +29,10 @@ int associate(TRACKSET *trackSet, CvSeq *curTrack, CvSeq *pos, CvSeq **tangle, C
 			track=(CvSeq *)cur->track;
 			TRACKITEM *item=(TRACKITEM *)cvGetSeqElem(track, cur->index);
 			
-			CvBox2D *box=(CvBox2D *)cvGetSeqElem(pos, j);
+			POSITION *posi=(POSITION *)cvGetSeqElem(pos, j);
 
-			double x=box->center.x;
-			double y=box->center.y;
+			double x=posi->x;
+			double y=posi->y;
 			double vx=x-item->x;
 			double vy=y-item->y;
 			double ax=vx-item->vx;
@@ -92,24 +95,24 @@ int associate(TRACKSET *trackSet, CvSeq *curTrack, CvSeq *pos, CvSeq **tangle, C
 		track=(CvSeq *)(current->track);
 		TRACKITEM *item=(TRACKITEM *)cvGetSeqElem(track, current->index);
 
-		CvBox2D *box=(CvBox2D *)cvGetSeqElem(pos, minLoc.x);
+		POSITION *posi=(POSITION *)cvGetSeqElem(pos, minLoc.x);
 		
 		CvMat* measurement = cvCreateMat( 2, 1, CV_32FC1 );
-		cvSet1D(measurement, 0, cvRealScalar(box->center.x));
-		cvSet1D(measurement, 1, cvRealScalar(box->center.y));
+		cvSet1D(measurement, 0, cvRealScalar(posi->x));
+		cvSet1D(measurement, 1, cvRealScalar(posi->y));
 		cvKalmanCorrect(item->kalman, measurement);
 		cvReleaseMat(&measurement);
 
 		item->disappear=0;
-		item->x = box->center.x;
-		item->y = box->center.y;
+		item->x = posi->x;
+		item->y = posi->y;
 		item->vx= item->vx_pre;
 		item->vy= item->vy_pre;
 		item->ax= item->ax_pre;
 		item->ay= item->ay_pre;
-		item->angle = box->angle;
-		item->width = box->size.width;
-		item->height= box->size.height;
+		item->angle = posi->angle;
+		item->width = posi->width;
+		item->height= posi->height;
 		
 		cvSeqPush(c_del, &(minLoc.y));
 		cvSeqPush(p_del, &(minLoc.x));
@@ -229,9 +232,9 @@ int create(TRACKSET *trackSet, CvSeq *curTrack, CvSeq *pos, CvMemStorage *storag
 		CvSeq *track;
 		CvKalman *kalman;
 		TRACK cur;
-		CvBox2D box;
+		POSITION posi;
 		
-		memcpy(&box, cvGetSeqElem(pos, i), sizeof(CvBox2D));		
+		memcpy(&posi, cvGetSeqElem(pos, i), sizeof(POSITION));		
 
 		track=cvCreateSeq(0, sizeof(CvSeq), sizeof(TRACKITEM), storage);
 		if(trackSet->head==NULL)
@@ -256,14 +259,14 @@ int create(TRACKSET *trackSet, CvSeq *curTrack, CvSeq *pos, CvMemStorage *storag
 		cvSetIdentity( kalman->error_cov_post, cvRealScalar(1));
 		cvSetIdentity( kalman->process_noise_cov, cvRealScalar(1e-5) );
 		cvZero(kalman->state_post);
-		cvSet1D(kalman->state_post,0, cvRealScalar(box.center.x));
-		cvSet1D(kalman->state_post,1, cvRealScalar(box.center.y));
+		cvSet1D(kalman->state_post,0, cvRealScalar(posi.x));
+		cvSet1D(kalman->state_post,1, cvRealScalar(posi.y));
 
 
 		item.index=0;
 		item.disappear=0;
-		item.x = box.center.x;
-		item.y = box.center.y;
+		item.x = posi.x;
+		item.y = posi.y;
 		item.vx= 0.0;
 		item.vy= 0.0;
 		item.ax= 0.0;
@@ -274,9 +277,9 @@ int create(TRACKSET *trackSet, CvSeq *curTrack, CvSeq *pos, CvMemStorage *storag
 		item.vy_pre= 0.0;
 		item.ax_pre= 0.0;
 		item.ay_pre= 0.0;
-		item.angle = box.angle;
-		item.width = box.size.width;
-		item.height= box.size.height;
+		item.angle = posi.angle;
+		item.width = posi.width;
+		item.height= posi.height;
 		item.kalman = kalman;
 		cvSeqPush(track, &item);
 
@@ -491,9 +494,9 @@ int selectTrack(TRACKSET *trackSet)
 		rr=(realtotal*rsumxy-rsumx*rsumy)/
 			sqrt((realtotal*rsumx2-rsumx*rsumx)*(realtotal*rsumy2-rsumy*rsumy));
 
-		if((double)realtotal/(double)(track->total)>0.7 && realtotal>4 && rr > 0.5)
+		if((double)realtotal/(double)(track->total)>0.7 && realtotal>4 /*&& rr > 0.5*/)
 		{
-			printf("*%d %d %f %f %f\n", realtotal, track->total, (double)realtotal/(double)(track->total), r, rr);
+//			printf("*%d %d %f %f %f\n", realtotal, track->total, (double)realtotal/(double)(track->total), r, rr);
 		}
 		else
 		{
@@ -507,29 +510,60 @@ int selectTrack(TRACKSET *trackSet)
 				trackSet->head=track->h_next;
 				track->h_next->h_prev=NULL;
 			}
-			printf(" %d %d %f %f %f\n", realtotal, track->total, (double)realtotal/(double)(track->total), r, rr);
+//			printf(" %d %d %f %f %f\n", realtotal, track->total, (double)realtotal/(double)(track->total), r, rr);
 		}
 		track=track->h_next;
 	}
 	return 1;
 }
 
-int statTrack(TRACKSET *trackSet, int *hist)
+int statTrack(TRACKSET *trackSet, int *hist, float stride, float *dist)
 {
 	int i=0;
-	
+  stride = 16.0f;
+	int pos;
 	CvSeq *track = trackSet->head;
+        printf("Width\tHeight\tPosX\tPosY\tVelX\tVelY\tTime\n");
 	while(track->h_next)
 	{
-		for(i=0;i<track->total;i++)
+/*
+	  TRACKITEM *item1 = (TRACKITEM *)cvGetSeqElem(track, 0);
+	  TRACKITEM *item2 = (TRACKITEM *)cvGetSeqElem(track, track->total-3);
+	  float dy = -(item2->y - item1->y)/(track->total-2);
+		printf("%f\n",dy);
+		if(dy>0.0)
+		hist[cvFloor(dy)]++;
+		if(dy<0.0)
+		hist[cvFloor(-dy)]++;
+*/
+		for(i=0;i<track->total-1;i++)
 		{
-			TRACKITEM *item = (TRACKITEM *)cvGetSeqElem(track, i);
-			if(item->vy*2.0+0.0>0.0 && item->vy!=0.0)
-			{
-				printf("%f\n",item->vy);
-				hist[cvFloor(item->vy*2.0+0.0)]++;
-			}
+      TRACKITEM *item1 = (TRACKITEM *)cvGetSeqElem(track, i);
+      TRACKITEM *item2 = (TRACKITEM *)cvGetSeqElem(track, i+1);
+      if (item1->height>1e-5 && item2->height>1e-5)
+      {
+        float dx, dy, x, y, h, w, t;
+        dy = fabsf(item2->y - item1->y);
+        dx = fabsf(item2->x - item1->x);
+        x = fabsf(item1->x + item2->x)/2.0f;
+        y = fabsf(item1->y + item2->y)/2.0f;
+        h = fabsf(item1->height + item2->height)/2.0f;
+        w = fabsf(item1->width + item2->width)/2.0f;
+	t = fabsf((float)item1->index + (float)item2->index)/2.0f*0.044f;
+        printf("%e %e %e %e %e %e %e\n", w, h, x, y, dx, dy, t);
+        hist[cvFloor(dy)]++;
+        pos = (int)(x/stride);
+        *(dist+3*pos+0)+=1.0f;
+        *(dist+3*pos+1)+=dy;
+        *(dist+3*pos+2)=*(dist+3*pos+1)/ *(dist+3*pos+0);
+      }
 		}
+
 		track=track->h_next;
 	}
+  /*
+  for(i=0; i<1024/(int)stride; i++)
+  {
+    printf("%d %f\n", (int)*(dist+3*i+0), *(dist+3*i+2));
+  }*/
 }

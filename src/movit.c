@@ -7,10 +7,12 @@ MOVIT: Analyse Particles' Motion Profile in Electrophoresis.
 
 #include "track.h"
 #include <stdio.h>
+#include <gtk/gtk.h>
 
 #define TIFF_BLOCK_SIZE 100
+#define STRIDE 16
 
-int loop(char ** filename)
+int loop(char * filename)
 {
 	FILE *fpImage=NULL;
 	int nTotalFrame=0;
@@ -22,6 +24,7 @@ int loop(char ** filename)
 	int histRadii[2000]={0};
 	int histDist[2000]={0};
 	int histVel[2000]={0};
+  float distVel[1024/STRIDE][3]={0.0f};
 
 	int nJitter=0;
 	double dThreshold=0.0;
@@ -37,7 +40,7 @@ int loop(char ** filename)
 	TRACKSET	trackSet;
 	CvSeq	*currentTrack=NULL;
 	
-	if(!openTIFF(filename[1], &fpImage, &nTotalFrame, &idxFrame))
+	if(!openTIFF(filename, &fpImage, &nTotalFrame, &idxFrame))
 		exit(1);
 //	printf("%d frames found in %s\n", nTotalFrame, filename[1]);							//debug
 	
@@ -47,16 +50,16 @@ int loop(char ** filename)
 	trackSet.tail=NULL;
 	trackSet.current=NULL;
 
-	radii_hist_image = cvCreateImage(cvSize(320,200), 8, 1);
-	dist_hist_image = cvCreateImage(cvSize(320,200), 8, 1);
-	vel_hist_image = cvCreateImage(cvSize(320,200), 8, 1);
+//	radii_hist_image = cvCreateImage(cvSize(320,200), 8, 1);
+//	dist_hist_image = cvCreateImage(cvSize(320,200), 8, 1);
+//	vel_hist_image = cvCreateImage(cvSize(320,200), 8, 1);
 	
-	cvNamedWindow("Image", 0);
-	cvResizeWindow("Image", 800, 800);
+//	cvNamedWindow("Image", 0);
+//	cvResizeWindow("Image", 800, 800);
   
-  cvNamedWindow("Radii", 0);
-  cvNamedWindow("Distance", 0);
-  cvNamedWindow("Velocity", 0);
+//  cvNamedWindow("Radii", 0);
+//  cvNamedWindow("Distance", 0);
+//  cvNamedWindow("Velocity", 0);
 	
 	for(i=0; i<(nTotalFrame-1)/TIFF_BLOCK_SIZE+1 ; i++)
 	{
@@ -71,7 +74,6 @@ int loop(char ** filename)
 		imgBackground=cvCreateImage(cvSize(1004,1002), IPL_DEPTH_32F, 1);
 		getBackground(imgOrigin, nBlockFrame, &imgBackground);
 		getForeground(imgOrigin, nBlockFrame, &imgBackground);
-  	cvShowImage("Image", imgBackground);
 		getParameters(imgOrigin, nBlockFrame, &dThreshold, &dDiameter, &nJitter);
 
 //		printf("Geting Positions...\n");
@@ -81,7 +83,7 @@ int loop(char ** filename)
 
 //		printf("Loading Tracks...\n");
 		getTrack(position, nBlockFrame, &trackSet, currentTrack, storage);
-
+    selectTrack(&trackSet);
 /*		printf("Rendering Frames...\n");
 		for(j=0;j<nBlockFrame;j++)
 		{
@@ -105,18 +107,18 @@ int loop(char ** filename)
 	}
 
 //	printf("Creating Histograms...\n");
-	statTrack(&trackSet, histVel);
+  statTrack(&trackSet, histVel, 4.0f, distVel);
 
-	getHist(&dist_hist_image, histDist, 2000);
-	getHist(&radii_hist_image, histRadii, 2000);
-	getHist(&vel_hist_image, histVel, 2000);
+//	getHist(&dist_hist_image, histDist, 2000);
+//	getHist(&radii_hist_image, histRadii, 2000);
+//	getHist(&vel_hist_image, histVel, 2000);
 	
-	cvShowImage("Distance", dist_hist_image);
-	cvShowImage("Radii", radii_hist_image);
-	cvShowImage("Velocity", vel_hist_image);
+//	cvShowImage("Distance", dist_hist_image);
+//	cvShowImage("Radii", radii_hist_image);
+//	cvShowImage("Velocity", vel_hist_image);
 	
 //	printf("Rendering Tracks...\n");
-	renderTrack(&trackSet);
+//	renderTrack(&trackSet);
 //	selectTrack(&trackSet);
 //	renderTrack(&trackSet);
 //	selectTrack(&trackSet);
@@ -125,8 +127,62 @@ int loop(char ** filename)
 	closeTIFF(fpImage);
 	return 0;
 }
+static void open_file( GtkWidget *widget,
+                         gpointer  data )
+{
+
+    GtkWidget *dialog;
+    char *filename;
+
+    dialog = gtk_file_chooser_dialog_new ("Open File",
+                      NULL,
+                      GTK_FILE_CHOOSER_ACTION_OPEN,
+                      GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+                      GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
+                      NULL);
+    if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_ACCEPT)
+    {
+      filename = gtk_file_chooser_get_filename (GTK_FILE_CHOOSER (dialog));
+    }
+    gtk_widget_destroy (dialog);
+    g_print("%s\n",filename);
+    loop (filename);
+    g_free (filename);
+}
 int main(int argc, char **argv)
 {
-	int radiiRange[2]={0,2000};
-	loop(argv);
+	//int radiiRange[2]={0,2000};
+
+    GtkWidget *window;
+    GtkWidget *button;
+    
+    gtk_init (&argc, &argv);
+
+    window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    
+    g_signal_connect (window, "delete-event",
+          G_CALLBACK (gtk_main_quit), NULL);
+    
+//    g_signal_connect (window, "destroy",
+//          G_CALLBACK (gtk_main_quit), NULL);
+    
+    gtk_container_set_border_width (GTK_CONTAINER (window), 10);
+    
+    button = gtk_button_new_with_label ("Open File");
+    
+    g_signal_connect (button, "clicked",
+          G_CALLBACK (open_file), window);
+    
+    gtk_container_add (GTK_CONTAINER (window), button);
+    
+    gtk_widget_show (button);
+    
+    gtk_widget_show (window);
+    
+    gtk_main ();
+    
+
+
+    
+  return 0;
 }

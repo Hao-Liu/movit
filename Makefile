@@ -27,7 +27,7 @@ INCLUDE_DIR=$(MAKE_DIR)/include
 DEBUG_DIR=$(MAKE_DIR)/debug/
 RELEASE_DIR=$(MAKE_DIR)/release/
 OUTPUT_DIR=
-INCLUDE=-I$(INCLUDE_DIR) -I$(SRC_DIR) -I/usr/local/include/opencv
+INCLUDE=-I$(INCLUDE_DIR) -I$(SRC_DIR) -I/usr/local/include/opencv `pkg-config --cflags --libs gtk+-2.0`
 LIB=-L$(LIB_DIR) -L$(OBJ_DIR) -L/usr/local/lib -lcv -lhighgui
 OUTPUT_FILE=movit
 
