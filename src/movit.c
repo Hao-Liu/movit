@@ -12,6 +12,11 @@ MOVIT: Analyse Particles' Motion Profile in Electrophoresis.
 #define TIFF_BLOCK_SIZE 100
 #define STRIDE 16
 
+typedef struct 
+{
+  char filename[200];
+}SYSTEM;
+
 int loop(char * filename)
 {
 	FILE *fpImage=NULL;
@@ -127,10 +132,10 @@ int loop(char * filename)
 	closeTIFF(fpImage);
 	return 0;
 }
-static void open_file( GtkWidget *widget,
-                         gpointer  data )
-{
 
+static void open_file( GtkWidget *widget,
+                         SYSTEM* system )
+{
     GtkWidget *dialog;
     char *filename;
 
@@ -140,49 +145,55 @@ static void open_file( GtkWidget *widget,
                       GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
                       GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
                       NULL);
+
     if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_ACCEPT)
     {
       filename = gtk_file_chooser_get_filename (GTK_FILE_CHOOSER (dialog));
     }
-    gtk_widget_destroy (dialog);
     g_print("%s\n",filename);
-    loop (filename);
-    g_free (filename);
+    strcpy (system->filename, filename);
+    gtk_widget_destroy (dialog);
 }
+
+static void run( GtkWidget *widget,
+                         SYSTEM* system )
+{
+  loop(system->filename);
+}
+
 int main(int argc, char **argv)
 {
-	//int radiiRange[2]={0,2000};
-
+    SYSTEM system;
     GtkWidget *window;
-    GtkWidget *button;
+    GtkWidget *box;
+    GtkWidget *btn_open;
+    GtkWidget *btn_run;
+
+    char **filename;
     
     gtk_init (&argc, &argv);
 
     window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-    
-    g_signal_connect (window, "delete-event",
-          G_CALLBACK (gtk_main_quit), NULL);
-    
-//    g_signal_connect (window, "destroy",
-//          G_CALLBACK (gtk_main_quit), NULL);
-    
+    g_signal_connect (window, "delete-event", G_CALLBACK (gtk_main_quit), NULL);
     gtk_container_set_border_width (GTK_CONTAINER (window), 10);
+
+    box = gtk_hbox_new (FALSE, 0);
+    gtk_container_add (GTK_CONTAINER (window), box);
     
-    button = gtk_button_new_with_label ("Open File");
-    
-    g_signal_connect (button, "clicked",
-          G_CALLBACK (open_file), window);
-    
-    gtk_container_add (GTK_CONTAINER (window), button);
-    
-    gtk_widget_show (button);
-    
+    btn_open = gtk_button_new_with_label ("Open File");
+    g_signal_connect (btn_open, "clicked", G_CALLBACK (open_file), (gpointer)&system);
+    gtk_box_pack_start (GTK_BOX(box), btn_open, TRUE, TRUE, 0);
+    gtk_widget_show (btn_open);
+
+    btn_run = gtk_button_new_with_label ("Run");
+    g_signal_connect (btn_run, "clicked", G_CALLBACK (run), (gpointer)&system);
+    gtk_box_pack_start (GTK_BOX(box), btn_run, TRUE, TRUE, 0);
+    gtk_widget_show (btn_run);
+
+    gtk_widget_show (box);
     gtk_widget_show (window);
     
     gtk_main ();
-    
-
-
     
   return 0;
 }
