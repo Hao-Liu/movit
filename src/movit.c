@@ -44,9 +44,23 @@ int loop(char * filename)
 	CvSeq	**position=NULL;
 	TRACKSET	trackSet;
 	CvSeq	*currentTrack=NULL;
+
+  FILE * fp_out=NULL;
 	
 	if(!openTIFF(filename, &fpImage, &nTotalFrame, &idxFrame))
 		exit(1);
+
+  if (strstr (filename, ".tif") == filename + strlen (filename) - 4 )
+  {
+    filename[strlen(filename)-2]='x';
+    filename[strlen(filename)-1]='t';
+  }
+  else
+  {
+    strcat(filename, ".txt");
+  }
+  
+  fp_out = fopen(filename,"w");
 //	printf("%d frames found in %s\n", nTotalFrame, filename[1]);							//debug
 	
 	storage=cvCreateMemStorage(0);
@@ -112,7 +126,7 @@ int loop(char * filename)
 	}
 
 //	printf("Creating Histograms...\n");
-  statTrack(&trackSet, histVel, 4.0f, distVel);
+  statTrack(&trackSet, histVel, 4.0f, distVel, fp_out);
 
 //	getHist(&dist_hist_image, histDist, 2000);
 //	getHist(&radii_hist_image, histRadii, 2000);
@@ -129,6 +143,7 @@ int loop(char * filename)
 //	selectTrack(&trackSet);
 	
 //	printf("Closing...\n");
+  fclose(fp_out);
 	closeTIFF(fpImage);
 	return 0;
 }
@@ -169,17 +184,24 @@ int main(int argc, char **argv)
     GtkWidget *btn_open;
     GtkWidget *btn_run;
 
+    GtkWidget *pbar;
+
     char **filename;
     
     gtk_init (&argc, &argv);
 
     window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     g_signal_connect (window, "delete-event", G_CALLBACK (gtk_main_quit), NULL);
+    gtk_window_set_title (GTK_WINDOW (window), "MOVIT");
     gtk_container_set_border_width (GTK_CONTAINER (window), 10);
 
     box = gtk_hbox_new (FALSE, 0);
     gtk_container_add (GTK_CONTAINER (window), box);
     
+    pbar = gtk_progress_bar_new ();
+    gtk_box_pack_start (GTK_BOX(box), pbar, TRUE, TRUE, 0);
+    gtk_widget_show (pbar);
+
     btn_open = gtk_button_new_with_label ("Open File");
     g_signal_connect (btn_open, "clicked", G_CALLBACK (open_file), (gpointer)&system);
     gtk_box_pack_start (GTK_BOX(box), btn_open, TRUE, TRUE, 0);

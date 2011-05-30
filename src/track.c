@@ -517,13 +517,13 @@ int selectTrack(TRACKSET *trackSet)
 	return 1;
 }
 
-int statTrack(TRACKSET *trackSet, int *hist, float stride, float *dist)
+int statTrack(TRACKSET *trackSet, int *hist, float stride, float *dist, FILE *fp)
 {
 	int i=0;
   stride = 16.0f;
 	int pos;
 	CvSeq *track = trackSet->head;
-        printf("Width\tHeight\tPosX\tPosY\tVelX\tVelY\tTime\n");
+        fprintf(fp, "Width\tHeight\tPosX\tPosY\tVelX\tVelY\tTime\n");
 	while(track->h_next)
 	{
 /*
@@ -550,7 +550,7 @@ int statTrack(TRACKSET *trackSet, int *hist, float stride, float *dist)
         h = fabsf(item1->height + item2->height)/2.0f;
         w = fabsf(item1->width + item2->width)/2.0f;
 	t = fabsf((float)item1->index + (float)item2->index)/2.0f*0.044f;
-        printf("%e %e %e %e %e %e %e\n", w, h, x, y, dx, dy, t);
+        fprintf(fp, "%e %e %e %e %e %e %e\n", w, h, x, y, dx, dy, t);
         hist[cvFloor(dy)]++;
         pos = (int)(x/stride);
         *(dist+3*pos+0)+=1.0f;
